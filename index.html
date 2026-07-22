@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Crax Distributor — Billing &amp; Stock</title>
+<meta name="theme-color" content="#12151a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark">
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-logo">C</div>
+  <div class="loading-text">Loading your data…</div>
+</div>
+
+<div class="app-shell">
+
+  <!-- ===== Top Bar ===== -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="logo-mark">C</div>
+      <div>
+        <h1 class="app-title">Crax Distributor</h1>
+        <div class="app-sub" id="pageSubtitle">Billing &amp; Stock Manager</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="searchToggleBtn" aria-label="Search">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.47 6.47 0 0 0 1.57-4.23A6.5 6.5 0 1 0 9.5 16a6.47 6.47 0 0 0 4.23-1.57l.27.28v.79l5 5 1.5-1.5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+      </button>
+      <button class="icon-btn" id="themeToggleBtn" aria-label="Toggle theme">
+        <svg viewBox="0 0 24 24" width="20" height="20" id="themeIcon"><path fill="currentColor" d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.403 5.403 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== Search Overlay ===== -->
+  <div class="search-overlay" id="searchOverlay">
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27a6.47 6.47 0 0 0 1.57-4.23A6.5 6.5 0 1 0 9.5 16a6.47 6.47 0 0 0 4.23-1.57l.27.28v.79l5 5 1.5-1.5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"/></svg>
+      <input type="text" id="globalSearchInput" placeholder="Search product or customer...">
+      <button class="text-btn" id="searchCloseBtn">Close</button>
+    </div>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+
+  <!-- ===== Pages ===== -->
+  <main class="page-area" id="pageArea">
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section class="page active" id="page-dashboard">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(255,106,26,.14); color:var(--accent);">📦</div>
+          <div class="stat-num" id="statTotalProducts">0</div>
+          <div class="stat-label">Total Products</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(45,212,167,.14); color:var(--teal);">🧮</div>
+          <div class="stat-num" id="statTotalStock">0</div>
+          <div class="stat-label">Total Stock (pcs)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(242,185,12,.16); color:var(--yellow);">🧾</div>
+          <div class="stat-num" id="statTodayOrders">0</div>
+          <div class="stat-label">Today's Orders</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(239,68,68,.14); color:var(--red);">💰</div>
+          <div class="stat-num" id="statTodaySales">₹0</div>
+          <div class="stat-label">Today's Sales</div>
+        </div>
+      </div>
+
+      <div id="stockAlertBanner"></div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Today's Orders</h2>
+        </div>
+        <div id="dashRecentOrders"></div>
+        <div class="empty-state" id="dashOrdersEmpty">No orders yet today</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Quick Actions</h2></div>
+        <div class="quick-actions">
+          <button class="btn btn-primary" data-nav="order">+ New Order</button>
+          <button class="btn btn-ghost" data-nav="products">+ Manage Products</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- PRODUCTS ---------- -->
+    <section class="page" id="page-products">
+      <div class="category-chips" id="categoryChips"></div>
+
+      <div class="fab-inline-row">
+        <button class="btn btn-primary btn-block" id="openAddProductBtn">+ Add New Product</button>
+      </div>
+
+      <div id="productListWrap"></div>
+      <div class="empty-state" id="productsEmpty">No products found</div>
+    </section>
+
+    <!-- ---------- NEW ORDER ---------- -->
+    <section class="page" id="page-order">
+      <div class="card">
+        <div class="card-head"><h2>New Order</h2></div>
+
+        <label class="field-label">Customer Name</label>
+        <input type="text" id="orderCustomer" class="input" placeholder="e.g. Raj Traders" list="customerSuggestions">
+        <datalist id="customerSuggestions"></datalist>
+
+        <label class="field-label">Product</label>
+        <select id="orderProduct" class="input select"></select>
+
+        <label class="field-label">Quantity (Ladi)</label>
+        <input type="number" id="orderQty" class="input" placeholder="e.g. 10" min="1" inputmode="numeric">
+        <div class="hint-text" id="orderStockHint"></div>
+
+        <button class="btn btn-outline btn-block" id="addOrderLineBtn">+ Add to Bill</button>
+
+        <div id="orderLinesWrap"></div>
+
+        <div class="calc-box" id="orderCalcBox" style="display:none;">
+          <div class="calc-row"><span>Total Pieces</span><b id="calcTotalPieces">0</b></div>
+          <div class="calc-row"><span>Total Items</span><b id="calcTotalItems">0</b></div>
+          <div class="calc-row grand"><span>Grand Total</span><span id="calcGrandTotal">₹0</span></div>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="generateBillBtn" disabled>Generate Bill</button>
+      </div>
+    </section>
+
+    <!-- ---------- REPORTS ---------- -->
+    <section class="page" id="page-reports">
+      <div class="report-tabs" id="reportTabs">
+        <button class="rtab active" data-rtab="today">Today</button>
+        <button class="rtab" data-rtab="products">Product Wise</button>
+        <button class="rtab" data-rtab="top">Top Selling</button>
+        <button class="rtab" data-rtab="stock">Stock</button>
+        <button class="rtab" data-rtab="orders">All Orders</button>
+      </div>
+
+      <div class="stat-grid stat-grid-3" id="reportSummaryGrid"></div>
+
+      <div class="card">
+        <div class="card-head"><h2 id="reportCardTitle">Today's Sales</h2></div>
+        <div id="reportBody"></div>
+        <div class="empty-state" id="reportEmpty">No data available</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== Bottom Navigation ===== -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-nav="dashboard">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button class="nav-btn" data-nav="products">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M21 16.5v-9c0-.35-.18-.66-.46-.84l-8-4.5a1 1 0 0 0-1.08 0l-8 4.5A.99.99 0 0 0 3 7.5v9c0 .35.18.66.46.84l8 4.5c.16.09.34.14.54.14s.38-.05.54-.14l8-4.5c.28-.18.46-.49.46-.84zM12 4.15 17.99 7.5 12 10.85 6.01 7.5 12 4.15zM5 9.34l6 3.38v6.94l-6-3.38V9.34zm8 10.32v-6.94l6-3.38v6.94l-6 3.38z"/></svg>
+      <span>Products</span>
+    </button>
+    <button class="nav-btn nav-btn-center" data-nav="order">
+      <div class="nav-fab">
+        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+      </div>
+      <span>New Order</span>
+    </button>
+    <button class="nav-btn" data-nav="reports">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
+      <span>Reports</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ===== Add/Edit Product Modal ===== -->
+<div class="modal-backdrop" id="productModalBackdrop">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <h2 id="productModalTitle">Add New Product</h2>
+    <input type="hidden" id="editProductId">
+
+    <label class="field-label">Product Name</label>
+    <input type="text" id="prodName" class="input" placeholder="e.g. Ring Tamato">
+
+    <label class="field-label">Category</label>
+    <input type="text" id="prodCategory" class="input" placeholder="e.g. Ring" list="categoryList">
+    <datalist id="categoryList"></datalist>
+
+    <div class="input-row-2">
+      <div>
+        <label class="field-label">Pieces Per Ladi</label>
+        <input type="number" id="prodPieces" class="input" placeholder="14">
+      </div>
+      <div>
+        <label class="field-label">MRP Per Ladi (₹)</label>
+        <input type="number" id="prodMrp" class="input" placeholder="60">
+      </div>
+    </div>
+
+    <div class="input-row-2">
+      <div>
+        <label class="field-label">Stock (Ladi)</label>
+        <input type="number" id="prodStock" class="input" placeholder="50">
+      </div>
+      <div>
+        <label class="field-label">Low Stock Level (Ladi)</label>
+        <input type="number" id="prodLowLevel" class="input" placeholder="10">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelProductBtn">Cancel</button>
+      <button class="btn btn-primary" id="saveProductBtn">Save Product</button>
+    </div>
+    <button class="btn btn-danger-text" id="deleteProductBtn" style="display:none;">Delete Product</button>
+  </div>
+</div>
+
+<!-- ===== Invoice Modal ===== -->
+<div class="modal-backdrop" id="invoiceModalBackdrop">
+  <div class="modal-sheet invoice-sheet">
+    <div class="modal-handle"></div>
+    <button class="modal-close-x" id="closeInvoiceBtn">&times;</button>
+
+    <div class="invoice-header">
+      <div class="invoice-brand">CRAX DISTRIBUTOR</div>
+      <div class="invoice-meta">
+        <span id="invNumberOut"></span> · <span id="invDateOut"></span>
+      </div>
+    </div>
+
+    <div class="invoice-customer">
+      <span>Bill To</span>
+      <b id="invCustomerOut"></b>
+    </div>
+
+    <table class="invoice-table">
+      <thead>
+        <tr><th>Product</th><th>Ladi</th><th>Pcs</th><th class="ta-r">Amount</th></tr>
+      </thead>
+      <tbody id="invItemsOut"></tbody>
+    </table>
+
+    <div class="invoice-total-row">
+      <span>Total Pieces</span><b id="invTotalPiecesOut">0</b>
+    </div>
+    <div class="invoice-grand-row">
+      <span>Grand Total</span><b id="invGrandTotalOut">₹0</b>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" id="printInvoiceBtn">🖨️ Print</button>
+      <button class="btn btn-outline" id="pdfInvoiceBtn">⬇ PDF</button>
+      <button class="btn btn-wa" id="waInvoiceBtn">💬 WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase (compat SDK — simplest for a plain-JS, no-build project) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
