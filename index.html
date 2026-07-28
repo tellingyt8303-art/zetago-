@@ -149,7 +149,10 @@
       <div class="stat-grid stat-grid-3" id="reportSummaryGrid"></div>
 
       <div class="card">
-        <div class="card-head"><h2 id="reportCardTitle">Today's Sales</h2></div>
+        <div class="card-head">
+          <h2 id="reportCardTitle">Today's Sales</h2>
+          <button class="mini-btn" id="clearAllOrdersBtn" style="display:none; color:var(--red); border-color:var(--red);">🗑️ Delete All</button>
+        </div>
         <div id="reportBody"></div>
         <div class="empty-state" id="reportEmpty">No data available</div>
       </div>
@@ -261,14 +264,15 @@
       <button class="btn btn-outline" id="pdfInvoiceBtn">⬇ PDF</button>
       <button class="btn btn-wa" id="waInvoiceBtn">💬 WhatsApp</button>
     </div>
+    <button class="btn btn-danger-text" id="deleteOrderBtn">🗑️ Delete This Order</button>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <!-- Firebase (compat SDK — simplest for a plain-JS, no-build project) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
