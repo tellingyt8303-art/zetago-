@@ -101,6 +101,15 @@ function buildDefaultProducts(){
     ['Moong Dal', 'Namkeen', 12, 48],
     ['Double Majja', 'Namkeen', 12, 48],
     ['Navratan', 'Namkeen', 12, 48],
+    // Curls — 14 pieces, ₹60
+    ['Curls Cheese', 'Curls', 14, 60],
+    ['Curls Masala', 'Curls', 14, 60],
+    // Fritts — 14 pieces, ₹60
+    ['Fritts Onion', 'Fritts', 14, 60],
+    ['Fritts Peri Peri', 'Fritts', 14, 60],
+    // Natkhat — 14 pieces, ₹60
+    ['Natkhat Classic', 'Natkhat', 14, 60],
+    ['Natkhat Masala', 'Natkhat', 14, 60],
   ];
   return seed.map((row, i) => ({
     id: i + 1,
@@ -264,10 +273,16 @@ function renderDashboard(){
   } else {
     empty.style.display = 'none';
     wrap.innerHTML = todayOrders.slice(0, 8).map(o => `
-      <div class="list-row">
+      <div class="list-row tappable" data-order-id="${o.id}">
         <div><div class="lr-name">${o.customer}</div><div class="lr-meta">${o.invNo} · ${o.lines.length} item(s) · ${o.totalPieces} pcs</div></div>
         <div class="lr-val">${fmtMoney(o.totalAmount)}</div>
       </div>`).join('');
+    wrap.querySelectorAll('[data-order-id]').forEach(row => {
+      row.addEventListener('click', () => {
+        const order = orders.find(o => o.id === Number(row.dataset.orderId));
+        if (order){ lastInvoiceOrderId = order.id; openInvoiceModal(order); }
+      });
+    });
   }
 }
 
@@ -586,6 +601,27 @@ document.getElementById('waInvoiceBtn').addEventListener('click', () => {
   window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
 });
 
+document.getElementById('deleteOrderBtn').addEventListener('click', () => {
+  const order = orders.find(o => o.id === lastInvoiceOrderId);
+  if (!order) return;
+  if (!confirm(`Delete order ${order.invNo} for ${order.customer}? Stock will be restored.`)) return;
+
+  // Restore stock for each line in this order
+  order.lines.forEach(l => {
+    const p = getProduct(l.productId);
+    if (p) p.stockLadi += l.qty;
+  });
+  DB.persistProducts(products);
+
+  orders = orders.filter(o => o.id !== order.id);
+  DB.persistOrders(orders);
+
+  invoiceModal.classList.remove('show');
+  showToast('Order deleted · Stock restored ✓');
+  renderDashboard();
+  renderReports();
+});
+
 /* =========================================================
    REPORTS
    ========================================================= */
@@ -625,8 +661,8 @@ function renderReports(){
   if (currentReportTab === 'today'){
     titleEl.textContent = "Today's Sales";
     rows = todayOrders.map(o => `
-      <div class="list-row">
-        <div><div class="lr-name">${o.customer}</div><div class="lr-meta">${o.invNo} · ${o.lines.length} item(s)</div></div>
+      <div class="list-row tappable" data-order-id="${o.id}">
+        <div><div class="lr-name">${o.customer}</div><div class="lr-meta">${o.invNo} · ${o.lines.length} item(s) · tap for details</div></div>
         <div class="lr-val">${fmtMoney(o.totalAmount)}</div>
       </div>`).join('');
   }
@@ -678,10 +714,24 @@ function renderReports(){
   else if (currentReportTab === 'orders'){
     titleEl.textContent = `All Orders (${orders.length}) · Total Revenue ${fmtMoney(totalRevenueAll)}`;
     rows = orders.map(o => `
-      <div class="list-row">
-        <div><div class="lr-name">${o.customer}</div><div class="lr-meta">${o.invNo} · ${o.dateStr} · ${o.lines.length} item(s)</div></div>
+      <div class="list-row tappable" data-order-id="${o.id}">
+        <div><div class="lr-name">${o.customer}</div><div class="lr-meta">${o.invNo} · ${o.dateStr} · ${o.lines.length} item(s) · tap for details</div></div>
         <div class="lr-val">${fmtMoney(o.totalAmount)}</div>
       </div>`).join('');
+  }
+
+  // Show/hide the "Delete All" button depending on which tab is active
+  const clearBtn = document.getElementById('clearAllOrdersBtn');
+  if (currentReportTab === 'today' && todayOrders.length){
+    clearBtn.style.display = 'inline-block';
+    clearBtn.textContent = "🗑️ Delete Today's Orders";
+    clearBtn.dataset.scope = 'today';
+  } else if (currentReportTab === 'orders' && orders.length){
+    clearBtn.style.display = 'inline-block';
+    clearBtn.textContent = '🗑️ Delete All Orders';
+    clearBtn.dataset.scope = 'all';
+  } else {
+    clearBtn.style.display = 'none';
   }
 
   if (!rows){
@@ -691,9 +741,66 @@ function renderReports(){
     empty.style.display = 'none';
     body.innerHTML = rows;
   }
+
+  // Bind tap-to-view-detail on today/orders rows (re-bind every render since innerHTML was replaced)
+  body.querySelectorAll('[data-order-id]').forEach(row => {
+    row.addEventListener('click', () => {
+      const order = orders.find(o => o.id === Number(row.dataset.orderId));
+      if (order){ lastInvoiceOrderId = order.id; openInvoiceModal(order); }
+    });
+  });
 }
 
+document.getElementById('clearAllOrdersBtn').addEventListener('click', () => {
+  const scope = document.getElementById('clearAllOrdersBtn').dataset.scope;
+  const targetOrders = scope === 'today' ? orders.filter(o => o.dateISO === todayISO()) : orders;
+  if (!targetOrders.length) return;
+
+  const confirmMsg = scope === 'today'
+    ? `Delete all ${targetOrders.length} order(s) from today? Stock will be restored.`
+    : `Delete ALL ${targetOrders.length} order(s) permanently? Stock will be restored. This cannot be undone.`;
+  if (!confirm(confirmMsg)) return;
+
+  // Restore stock for every line in every order being deleted
+  targetOrders.forEach(o => {
+    o.lines.forEach(l => {
+      const p = getProduct(l.productId);
+      if (p) p.stockLadi += l.qty;
+    });
+  });
+  DB.persistProducts(products);
+
+  const targetIds = new Set(targetOrders.map(o => o.id));
+  orders = orders.filter(o => !targetIds.has(o.id));
+  DB.persistOrders(orders);
+
+  showToast('Orders deleted · Stock restored ✓');
+  renderReports();
+  renderDashboard();
+});
+
 /* ---------------- Init ---------------- */
+/* Adds any product from the master catalog that is missing from the
+   currently loaded list — used so sites that were already seeded
+   (Firestore already has data) still pick up newly introduced products,
+   without touching existing stock/data for products that already exist. */
+function patchInNewCatalogProducts(existingProducts){
+  const catalog = buildDefaultProducts();
+  const existingNames = new Set(existingProducts.map(p => p.name.toLowerCase()));
+  let maxId = existingProducts.reduce((m, p) => Math.max(m, p.id), 0);
+  let addedAny = false;
+
+  catalog.forEach(item => {
+    if (!existingNames.has(item.name.toLowerCase())){
+      maxId += 1;
+      existingProducts.push({ ...item, id: maxId });
+      addedAny = true;
+    }
+  });
+
+  return addedAny;
+}
+
 async function initApp(){
   const loadingScreen = document.getElementById('loadingScreen');
   try {
@@ -701,6 +808,10 @@ async function initApp(){
 
     if (fetchedProducts){
       products = fetchedProducts;
+      if (patchInNewCatalogProducts(products)){
+        DB.persistProducts(products); // sync newly added catalog items back to Firestore
+        showToast('New products added to your catalog ✓');
+      }
     } else {
       products = buildDefaultProducts();
       DB.persistProducts(products); // first-run seed, written to Firestore
@@ -712,6 +823,7 @@ async function initApp(){
   } catch (err){
     console.error('Could not reach Firestore, using offline cache:', err);
     products = DB.loadCachedProducts() || buildDefaultProducts();
+    if (patchInNewCatalogProducts(products)) DB.cacheProducts(products);
     orders = DB.loadCachedOrders() || [];
     showToast('📴 Offline — showing last saved data');
   }
