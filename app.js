@@ -9,13 +9,13 @@
    used as an offline cache: if the phone has no internet on load, we fall back to
    the last-synced copy so the app still works, then reconnect and sync when back online. */
 const firebaseConfig = {
-  apiKey: "AIzaSyC3sIauDUSY-q7ZWx_n2EpIsctZsWGE6Bs",
-  authDomain: "data-credit-a48bd.firebaseapp.com",
-  projectId: "data-credit-a48bd",
-  storageBucket: "data-credit-a48bd.firebasestorage.app",
-  messagingSenderId: "154490671024",
-  appId: "1:154490671024:web:e87588a05df41c4c625075",
-  measurementId: "G-5E6DF2Y208"
+  apiKey: "AIzaSyD4kh_czYSNZ63qLW-V1pWVkah80VB7H98",
+  authDomain: "stya-52be1.firebaseapp.com",
+  projectId: "stya-52be1",
+  storageBucket: "stya-52be1.firebasestorage.app",
+  messagingSenderId: "333307659379",
+  appId: "1:333307659379:web:4ab3e686711278dd9a9606",
+  measurementId: "G-N373Y12B22"
 };
 firebase.initializeApp(firebaseConfig);
 const firestoreDB = firebase.firestore();
