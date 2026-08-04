@@ -19,6 +19,17 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const firestoreDB = firebase.firestore();
+
+// Firestore's own offline engine: queues writes in IndexedDB while offline and
+// auto-syncs them the moment connectivity returns — this is what actually makes
+// "work offline, save later" safe (our localStorage cache alone was not enough).
+firestoreDB.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+  if (err.code === 'failed-precondition'){
+    console.warn('Offline persistence: multiple tabs open, only one can enable it.');
+  } else if (err.code === 'unimplemented'){
+    console.warn('Offline persistence not supported in this browser.');
+  }
+});
 const productsDocRef = firestoreDB.collection('craxDistributor').doc('products');
 const ordersDocRef = firestoreDB.collection('craxDistributor').doc('orders');
 
@@ -47,16 +58,19 @@ const DB = {
 
   persistProducts(products){
     this.cacheProducts(products);
+    // With offline persistence enabled, this resolves immediately even when offline
+    // (write is queued and auto-synced later). A real rejection here means something
+    // other than "no internet" — e.g. a Firestore rules/permission problem.
     productsDocRef.set({ list: products }).catch(err => {
       console.error('Firestore product sync failed:', err);
-      showToast('⚠️ Saved locally — will sync when online');
+      showToast('⚠️ Could not sync to cloud — check Firestore rules');
     });
   },
   persistOrders(orders){
     this.cacheOrders(orders);
     ordersDocRef.set({ list: orders }).catch(err => {
       console.error('Firestore order sync failed:', err);
-      showToast('⚠️ Saved locally — will sync when online');
+      showToast('⚠️ Could not sync to cloud — check Firestore rules');
     });
   },
 
@@ -724,6 +738,163 @@ function renderReports(){
   const clearBtn = document.getElementById('clearAllOrdersBtn');
   if (currentReportTab === 'today' && todayOrders.length){
     clearBtn.style.display = 'inline-block';
+    clearBtn.textContent = "🗑️ Delete Today's Orders";
+    clearBtn.dataset.scope = 'today';
+  } else if (currentReportTab === 'orders' && orders.length){
+    clearBtn.style.display = 'inline-block';
+    clearBtn.textContent = '🗑️ Delete All Orders';
+    clearBtn.dataset.scope = 'all';
+  } else {
+    clearBtn.style.display = 'none';
+  }
+
+  if (!rows){
+    body.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    body.innerHTML = rows;
+  }
+
+  // Bind tap-to-view-detail on today/orders rows (re-bind every render since innerHTML was replaced)
+  body.querySelectorAll('[data-order-id]').forEach(row => {
+    row.addEventListener('click', () => {
+      const order = orders.find(o => o.id === Number(row.dataset.orderId));
+      if (order){ lastInvoiceOrderId = order.id; openInvoiceModal(order); }
+    });
+  });
+}
+
+document.getElementById('clearAllOrdersBtn').addEventListener('click', () => {
+  const scope = document.getElementById('clearAllOrdersBtn').dataset.scope;
+  const targetOrders = scope === 'today' ? orders.filter(o => o.dateISO === todayISO()) : orders;
+  if (!targetOrders.length) return;
+
+  const confirmMsg = scope === 'today'
+    ? `Delete all ${targetOrders.length} order(s) from today? Stock will be restored.`
+    : `Delete ALL ${targetOrders.length} order(s) permanently? Stock will be restored. This cannot be undone.`;
+  if (!confirm(confirmMsg)) return;
+
+  // Restore stock for every line in every order being deleted
+  targetOrders.forEach(o => {
+    o.lines.forEach(l => {
+      const p = getProduct(l.productId);
+      if (p) p.stockLadi += l.qty;
+    });
+  });
+  DB.persistProducts(products);
+
+  const targetIds = new Set(targetOrders.map(o => o.id));
+  orders = orders.filter(o => !targetIds.has(o.id));
+  DB.persistOrders(orders);
+
+  showToast('Orders deleted · Stock restored ✓');
+  renderReports();
+  renderDashboard();
+});
+
+/* ---------------- Init ---------------- */
+/* Adds any product from the master catalog that is missing from the
+   currently loaded list — used so sites that were already seeded
+   (Firestore already has data) still pick up newly introduced products,
+   without touching existing stock/data for products that already exist. */
+function patchInNewCatalogProducts(existingProducts){
+  const catalog = buildDefaultProducts();
+  const existingNames = new Set(existingProducts.map(p => p.name.toLowerCase()));
+  let maxId = existingProducts.reduce((m, p) => Math.max(m, p.id), 0);
+  let addedAny = false;
+
+  catalog.forEach(item => {
+    if (!existingNames.has(item.name.toLowerCase())){
+      maxId += 1;
+      existingProducts.push({ ...item, id: maxId });
+      addedAny = true;
+    }
+  });
+
+  return addedAny;
+}
+
+async function initApp(){
+  const loadingScreen = document.getElementById('loadingScreen');
+  try {
+    const [fetchedProducts, fetchedOrders] = await Promise.all([DB.fetchProducts(), DB.fetchOrders()]);
+
+    if (fetchedProducts){
+      products = fetchedProducts;
+      if (patchInNewCatalogProducts(products)){
+        DB.persistProducts(products); // sync newly added catalog items back to Firestore
+        showToast('New products added to your catalog ✓');
+      }
+    } else {
+      products = buildDefaultProducts();
+      DB.persistProducts(products); // first-run seed, written to Firestore
+    }
+
+    orders = fetchedOrders || [];
+    DB.cacheProducts(products);
+    DB.cacheOrders(orders);
+  } catch (err){
+    console.error('Could not reach Firestore, using offline cache:', err);
+    products = DB.loadCachedProducts() || buildDefaultProducts();
+    if (patchInNewCatalogProducts(products)) DB.cacheProducts(products);
+    orders = DB.loadCachedOrders() || [];
+    showToast('📴 Offline — showing last saved data');
+  }
+
+  nextProductId = products.reduce((m, p) => Math.max(m, p.id), 0) + 1;
+  nextOrderSeq = orders.reduce((m, o) => Math.max(m, o.seq || 0), 0) + 1;
+
+  if (loadingScreen) loadingScreen.style.display = 'none';
+  renderDashboard();
+}
+
+initApp();
+
+/* =========================================================
+   PWA — Service Worker + Install Prompt
+   ========================================================= */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.error('SW registration failed:', err));
+  });
+}
+
+let deferredInstallPrompt = null;
+const installBtn = document.getElementById('installAppBtn');
+
+// Chrome/Android fires this when the app is installable but not yet installed
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  installBtn.style.display = 'flex';
+});
+
+installBtn.addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') showToast('App installed ✓');
+  deferredInstallPrompt = null;
+  installBtn.style.display = 'none';
+});
+
+// Hide the install button once the app is actually installed/running standalone
+window.addEventListener('appinstalled', () => {
+  installBtn.style.display = 'none';
+  showToast('App installed ✓');
+});
+
+/* ---------------- Online / Offline status feedback ----------------
+   With Firestore offline persistence enabled above, any order/product
+   saved while offline is queued locally and pushed automatically the
+   moment the connection returns — no extra action needed from the user. */
+window.addEventListener('offline', () => {
+  showToast('📴 Offline — your work is saving on this phone, will sync when back online');
+});
+window.addEventListener('online', () => {
+  showToast('🌐 Back online — syncing your saved work now');
+});
     clearBtn.textContent = "🗑️ Delete Today's Orders";
     clearBtn.dataset.scope = 'today';
   } else if (currentReportTab === 'orders' && orders.length){
